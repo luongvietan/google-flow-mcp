@@ -60,6 +60,13 @@ test('buildPrompt states kind, duration and attachment roles', () => {
   assert.match(image, /attached image 1 as a visual reference/);
 });
 
+test('buildPrompt names the exact model and forbids automatic substitution', () => {
+  const prompt = buildPrompt({ kind: 'video', duration: 8, flowModel: 'Veo 3.1 - Lite', prompt: 'an apple' }, []);
+  assert.match(prompt, /Use exactly the Veo 3\.1 - Lite model/);
+  assert.match(prompt, /Do not substitute another model/);
+  assert.match(prompt, /do not generate/);
+});
+
 test('legacyModel maps MCP tool names to wire models', () => {
   assert.equal(legacyModel('image', undefined), 'nano-banana-2');
   assert.equal(legacyModel('image', 'Nano Banana Pro'), 'nano-banana-pro');

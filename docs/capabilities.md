@@ -91,3 +91,11 @@ and clarification questions. Measuring these requires generations and belongs to
 | Veo 3.1 Lite, 6 s | refused by the agent: "only supports generating 8-second videos" on this tier; suggests Omni 1.1 Flash for 6 s; not charged |
 | Flow-side failure | tile with `mat-icon.error-icon` ("not charged for this generation") → `GENERATION_FAILED` |
 | Video results | chat `<flow-a2ui-video-option>` shows an image thumbnail with the video's uuid; the signed `flow-content.google/video/<uuid>` URL appears on the grid `<flow-video-tile>`'s `<video>` after hover |
+
+## Plan B live verification and exact-model enforcement
+
+Measured on 2026-10-01: Nano Banana Pro text/reference and Nano Banana 2 Lite text output native 1K JPEG and cost 0. Veo Fast/Quality text output 720×1280 MP4 with audio at 8 seconds for 20/100 credits. Omni text at 6 seconds costs 10; first+last frame or one ingredient at 8 seconds costs 12. Both boundary frames match references, and ingredient output preserves the subject and scene.
+
+Earlier Lite frame-pair and ingredient requests actually generated with Omni 1.1 Flash. These Lite modes are now rejected by Hypit; use Omni explicitly. The daemon names the exact model in its prompt and checks persisted `model_display_name` against the generated `media_id` before accepting success. It reads only the observed GN0Bre chat-history response, within independent message boundaries; prompt strings remain opaque. Unknown or ambiguous metadata produces UI_CHANGED, substitutions produce UNSUPPORTED_INPUT, with no automatic resubmission. The verified signed URL is preserved before reload because reloaded thumbnails use opaque `/asb/` URLs.
+
+The authenticated GET /credits route holds the browser mutex, restores the grid header and reads the account menu. Existing hashed uploads can be selected without re-upload; selecting them may attach immediately, while fresh uploads need Add to prompt. Prompt clearing removes old ingredient chips between jobs. Unmeasured quotas, mixed roles, last-frame-only, Omni first-frame-only and other durations remain unknown.

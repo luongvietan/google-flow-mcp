@@ -19,6 +19,7 @@ export class PlaywrightFlowDriver {
   constructor({ registryFile, expectedAccount, renderTimeoutMs = 900_000, connect = connectToFlow,
     sessionFactory = (page) => new FlowSession(page, { registryFile }) } = {}) {
     Object.assign(this, { expectedAccount, renderTimeoutMs, connect, sessionFactory });
+    this.verifiedMedia = new Map();
   }
 
   async #session() {
@@ -38,6 +39,7 @@ export class PlaywrightFlowDriver {
 
   generateImage(job, progress) { return this.#generate(job, progress); }
   generateVideo(job, progress) { return this.#generate(job, progress); }
+  async credits() { return (await this.#session()).credits(); }
 
   async #generate(job, progress) {
     const session = await this.#session();
@@ -61,13 +63,18 @@ export class PlaywrightFlowDriver {
     await session.typePrompt(buildPrompt(job, ingredients));
     await session.send();
     const [first] = await session.waitForMedia(job.kind, baseline, { timeoutMs: this.renderTimeoutMs, progress });
+    progress('verifying model');
+    const verified = await session.verifyMediaModel(first, job.flowModel);
+    this.verifiedMedia.set(verified.uuid, verified);
+    if (this.verifiedMedia.size > 64) this.verifiedMedia.delete(this.verifiedMedia.keys().next().value);
     progress('downloading');
-    return [await session.download(first, job.outputDir)];
+    return [await session.download(verified, job.outputDir)];
   }
 
   async redownload(uuid, kind, outputDir) {
     const session = await this.#session();
-    const found = (await session.mediaSnapshot({ generatedOnly: true })).find((item) => item.uuid === uuid && item.kind === kind);
+    const cached = this.verifiedMedia.get(uuid);
+    const found = cached?.kind === kind ? cached : (await session.mediaSnapshot({ generatedOnly: true })).find((item) => item.uuid === uuid && item.kind === kind);
     if (!found) throw new FlowError(ErrorCodes.DOWNLOAD_FAILED, `Media ${uuid} is no longer on the Flow page`);
     return session.download(found, outputDir);
   }

@@ -23,7 +23,7 @@ async function start({ callTool = async () => ({ ok: 'tool' }) } = {}) {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   const auth = { authorization: `Bearer ${token}` };
-  return { server, base, auth, runner, token };
+  return { server, base, auth, runner, token, mutex, driver };
 }
 const job = { kind: 'image', model: 'nano-banana-2', prompt: 'a cat', aspectRatio: '1:1',
   confirmCredits: true, idempotencyKey: 'key-server-01' };
@@ -51,6 +51,25 @@ test('everything else requires the bearer token', async (t) => {
   const response = await fetch(`${base}/jobs`, { method: 'POST', body: JSON.stringify(job) });
   assert.equal(response.status, 401);
   assert.equal((await response.json()).error.code, 'UNAUTHORIZED');
+});
+
+test('credit reads require authentication and wait for the browser mutex', async (t) => {
+  const { server, base, auth, mutex, driver } = await start();
+  t.after(() => server.close());
+  let calls = 0;
+  driver.credits = async () => { calls++; return 900; };
+  assert.equal((await fetch(`${base}/credits`)).status, 401);
+  let release;
+  const rendering = mutex.run(() => new Promise((resolve) => { release = resolve; }));
+  await new Promise((resolve) => setImmediate(resolve));
+  const reading = fetch(`${base}/credits`, { headers: auth });
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(calls, 0, 'credit UI must not touch an active render');
+  release(); await rendering;
+  const response = await reading;
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { credits: 900 });
+  assert.equal(calls, 1);
 });
 
 test('upload, submit, poll and download a job', async (t) => {

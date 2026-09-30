@@ -93,6 +93,10 @@ export function createDaemonServer({ token, store, uploads, runner, mutex, drive
     if (req.method === 'GET' && url.pathname === '/health') return send(res, 200, await health());
     if (!authorized(req, token)) throw new DaemonError(JobErrorCodes.UNAUTHORIZED, 'Missing or wrong bearer token');
 
+    if (req.method === 'GET' && url.pathname === '/credits') {
+      return send(res, 200, { credits: await mutex.run(() => driver.credits()) });
+    }
+
     if (req.method === 'POST' && url.pathname === '/uploads') {
       const mediaType = (req.headers['content-type'] ?? '').split(';')[0].trim();
       const upload = uploads.put(await readBody(req, MAX_UPLOAD_BYTES), mediaType);

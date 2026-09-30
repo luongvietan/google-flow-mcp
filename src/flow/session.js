@@ -3,6 +3,7 @@ import path from 'node:path';
 import { FlowError, ErrorCodes } from '../utils/errors.js';
 import { DaemonError, JobErrorCodes } from '../daemon/errors.js';
 import { takeScreenshot } from '../utils/screenshots.js';
+import { extractRenderedModels } from './metadata.js';
 import { FLOW_HOME, ICONS, LABELS, RATIO_ICONS, extractMedia, isProjectUrl, parseAccountLabel } from './ui.js';
 
 const exactText = (labels) => new RegExp(`^\\s*(${labels.map(escape).join('|')})\\s*$`, 'u');
@@ -106,6 +107,13 @@ export class FlowSession {
   }
 
   async clearPrompt() {
+    await this.dismissOverlays();
+    const chips = this.page.locator('button.chip-container:has(mat-icon:text-is("cancel"))');
+    while (await chips.count()) {
+      const chip = chips.first();
+      await chip.hover();
+      await chip.locator('mat-icon').filter({ hasText: /^cancel$/u }).click();
+    }
     const box = this.page.locator('[contenteditable="true"]').last();
     await box.click();
     await this.page.keyboard.press('Control+A');
@@ -116,6 +124,7 @@ export class FlowSession {
   // upload. Select the uploaded asset by its file name (upload-store names are unique) first.
   async attachIngredients(files) {
     for (const file of files) {
+      const chipCount = await this.page.locator('button.chip-container:has(mat-icon:text-is("cancel"))').count();
       await this.dismissOverlays();
       await this.icon(ICONS.add).last().click();
       const upload = this.icon(ICONS.upload).first();
@@ -125,20 +134,27 @@ export class FlowSession {
       const name = path.basename(file);
       const named = this.page.locator('.asset-item').filter({ hasText: name });
       const before = await named.count();
-      const chooser = this.page.waitForEvent('filechooser', { timeout: 15_000 });
-      await upload.click();
-      await (await chooser).setFiles(file);
-      // A new entry appears at once as a placeholder; it is selectable only once its thumbnail loads.
-      await this.page.waitForFunction(({ name, before }) => {
-        const items = [...document.querySelectorAll('.asset-item')].filter((el) => el.innerText.includes(name));
-        return items.length > before && items.every((el) => el.querySelector('img[src*="flow-content.google/"]'));
+      if (before === 0) {
+        const chooser = this.page.waitForEvent('filechooser', { timeout: 15_000 });
+        await upload.click();
+        await (await chooser).setFiles(file);
+        // A new entry appears at once as a placeholder; it is selectable only once its thumbnail loads.
+        await this.page.waitForFunction(({ name, before }) => {
+          const items = [...document.querySelectorAll('.asset-item')].filter((el) => el.innerText.includes(name));
+          return items.length > before && items.every((el) => el.querySelector('img[src*="flow-content.google/"]'));
       }, { name, before }, { timeout: 120_000 })
         .catch(async () => { throw await this.uiChanged(`Uploaded ${name} never finished in the ingredient picker`, 'upload-not-listed'); });
+      }
       const asset = named.first();
       await asset.click();
+      const confirm = this.page.locator('button').filter({ hasText: exactText(LABELS.addToPrompt) }).first();
+      // Selecting a previous upload attaches it immediately and closes the picker.
+      if (before > 0 && !(await confirm.isVisible().catch(() => false))) {
+        await this.page.waitForFunction((count) => [...document.querySelectorAll('button.chip-container')].filter(el => [...el.querySelectorAll('mat-icon')].some(icon => icon.textContent.trim() === 'cancel')).length === count + 1, chipCount, { timeout: 5_000 });
+        continue;
+      }
       await this.page.waitForFunction((el) => el.classList.contains('asset-item-active'), await asset.elementHandle(), { timeout: 5_000 })
         .catch(async () => { throw await this.uiChanged(`Could not select ${name} in the ingredient picker`, 'upload-not-selected'); });
-      const confirm = this.page.locator('button').filter({ hasText: exactText(LABELS.addToPrompt) }).first();
       await this.page.waitForFunction((el) => !el.disabled, await confirm.elementHandle(), { timeout: 30_000 });
       await confirm.click();
       await this.page.waitForTimeout(800);
@@ -256,6 +272,12 @@ export class FlowSession {
   // The account panel is a role=dialog without a backdrop; it closes through its own close icon.
   async credits() {
     await this.dismissOverlays();
+    // Hovering an off-screen media tile scrolls the document and hides the account header.
+    await this.page.evaluate(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      document.querySelector('.cdk-virtual-scrollable.page-container')?.scrollTo({ top: 0, behavior: 'instant' });
+    });
+    await this.page.waitForTimeout(200);
     const panel = this.page.locator('[role="dialog"]').filter({ hasText: /tín dụng|credits/iu }).first();
     if (!(await panel.isVisible().catch(() => false))) {
       await this.page.locator('[role="button"]').filter({ hasText: /^\s*PRO\s*$/u }).first().click();
@@ -265,5 +287,35 @@ export class FlowSession {
     await panel.locator('button:has(:text-is("close"))').first().click();
     const match = /([\d.,]+)\s*(tín dụng|credits)/iu.exec(text);
     return match ? Number(match[1].replace(/[.,]/gu, '')) : null;
+  }
+
+  async verifyMediaModel(media, expected) {
+    const url = media.kind === 'video' && !media.url.includes('/video/') ? await this.#videoUrl(media.uuid) : media.url;
+    const models = new Map();
+    let responses = 0;
+    const onResponse = response => {
+      const url = new URL(response.url());
+      if (url.hostname !== 'flow.google.com' || !url.pathname.endsWith('/data/batchexecute') || responses++ >= 64) return;
+      void response.text().then(text => {
+        if (text.length > 8 * 1024 * 1024) return;
+        for (const [id, model] of extractRenderedModels(text)) {
+          models.set(id, models.has(id) && models.get(id) !== model ? null : model);
+        }
+      }).catch(() => {});
+    };
+    this.page.on('response', onResponse);
+    try {
+      // Reload the finished project's persisted history. This performs no generation;
+      // model_display_name and media_id are server fields, never parsed from the prompt.
+      await this.page.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 });
+      const deadline = Date.now() + 15_000;
+      while (!models.has(media.uuid) && Date.now() < deadline) await this.page.waitForTimeout(200);
+      const actual = models.get(media.uuid);
+      if (!actual) throw new DaemonError(JobErrorCodes.UI_CHANGED, 'Persisted media metadata has no unambiguous model', { mediaUuid: media.uuid });
+      if (actual !== expected) throw new DaemonError(JobErrorCodes.UNSUPPORTED_INPUT, `Flow generated media with ${actual}, requested ${expected}; no automatic resubmission`, { mediaUuid: media.uuid, actualModel: actual, requestedModel: expected });
+      return { ...media, url };
+    } finally {
+      this.page.off('response', onResponse);
+    }
   }
 }

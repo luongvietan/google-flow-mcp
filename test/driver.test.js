@@ -17,6 +17,7 @@ class FakeSession {
   async typePrompt(text) { this.calls.push('type'); this.prompt = text; }
   async send() { this.calls.push('send'); }
   async waitForMedia(kind, baseline) { this.calls.push(`wait:${kind}:${[...baseline].join(',')}`); return this.fresh; }
+  async verifyMediaModel(media, expected) { this.calls.push(`verify:${expected}`); if (this.actualModel && this.actualModel !== expected) throw Object.assign(new Error('Flow substituted a model'), { code: 'UNSUPPORTED_INPUT' }); return media; }
   async download(media, dir) {
     this.calls.push(`download:${media.uuid}`);
     if (this.downloadFails) throw new FlowError(ErrorCodes.DOWNLOAD_FAILED, 'broken', { mediaUuids: [media.uuid] });
@@ -35,7 +36,7 @@ test('runs the full image pipeline in order', async () => {
   const media = await driverWith(session).generateImage(imageJob, () => {});
   assert.deepEqual(session.calls, [
     'account', 'open:demo', 'configure:image:Nano Banana 2:1:1', 'clear', 'attach:r.png',
-    'snapshot', 'type', 'send', 'wait:image:u-old', 'download:u-new',
+    'snapshot', 'type', 'send', 'wait:image:u-old', 'verify:Nano Banana 2', 'download:u-new',
   ]);
   assert.match(session.prompt, /attached image 1 as a visual reference/);
   assert.deepEqual(media, [{ file: 'out/x.jpg', mediaType: 'image/jpeg', mediaUuid: 'u-new' }]);
@@ -59,6 +60,12 @@ test('skips attaching when there are no inputs', async () => {
   assert.equal(session.calls.some((call) => call.startsWith('attach')), false);
 });
 
+test('rejects a substituted model before downloading or returning success', async () => {
+  const session = new FakeSession(); session.actualModel = 'Nano Banana Pro';
+  await assert.rejects(driverWith(session).generateImage(imageJob, () => {}), (err) => err.code === 'UNSUPPORTED_INPUT');
+  assert.equal(session.calls.some((call) => call.startsWith('download:')), false);
+});
+
 test('refuses a different signed-in account before touching the project', async () => {
   const session = new FakeSession({ account: 'someone@example.com' });
   await assert.rejects(driverWith(session).generateImage(imageJob, () => {}), (err) => err.code === 'ACCOUNT_MISMATCH');
@@ -69,6 +76,15 @@ test('a failed download keeps the media uuid for the runner retry', async () => 
   const session = new FakeSession({ downloadFails: true });
   await assert.rejects(driverWith(session).generateImage(imageJob, () => {}),
     (err) => err.code === 'DOWNLOAD_FAILED' && err.details.mediaUuids[0] === 'u-new');
+});
+
+test('download recovery keeps the verified signed URL across the metadata reload', async () => {
+  const session = new FakeSession({ downloadFails: true }); const driver = driverWith(session);
+  await assert.rejects(driver.generateImage(imageJob, () => {}), (error) => error.code === 'DOWNLOAD_FAILED');
+  session.downloadFails = false;
+  session.mediaSnapshot = async () => { throw new Error('Reloaded thumbnails have opaque URLs'); };
+  const media = await driver.redownload('u-new', 'image', 'out');
+  assert.equal(media.mediaUuid, 'u-new'); assert.equal(session.calls.filter(call => call === 'send').length, 1);
 });
 
 test('health reports the real account', async () => {

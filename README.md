@@ -82,6 +82,7 @@ created on first start.
 | Route | Purpose |
 | --- | --- |
 | `GET /health` | Chrome, sign-in and queue state |
+| `GET /credits` | Current credit balance; authenticated and serialized under the browser lock |
 | `POST /uploads` | Reference image bytes (PNG/JPEG/WebP) → `{ id }` |
 | `POST /jobs` | `{ kind, model, prompt, aspectRatio, duration?, references?, firstFrame?, lastFrame?, ingredients?, project?, confirmCredits, idempotencyKey }` |
 | `GET /jobs/:id` | `queued` · `running` · `succeeded` · `failed` · `interrupted`, with phase and outputs |
@@ -100,17 +101,30 @@ The driver targets `https://flow.google.com/`, finds controls by their Material 
 model/ratio/count in Flow's settings panel before each job and switches Flow's "confirm before
 generating" option to "never" — the daemon's `confirmCredits` flag is the spending gate. It refuses
 to run when the signed-in account differs from `expectedAccount`. Flow adds a visible AI watermark
-in some regions.
+  in some regions.
+
+The prompt names the exact model and forbids substitution. After rendering, the driver reloads
+the finished project's persisted history and checks its `model_display_name` against the media
+id before downloading. It reads the UI's observed `GN0Bre` batchexecute response; unknown or
+ambiguous metadata fails with `UI_CHANGED`, and a substituted model fails with `UNSUPPORTED_INPUT`.
+Neither failure submits another generation. Verified signed media URLs stay in a bounded in-memory
+cache so download retries do not rely on opaque thumbnails after reload.
+
+Live measurements on 2026-10-01: Nano Banana 2/Pro/2 Lite images cost 0; Veo Lite/Fast/Quality
+8-second text videos cost 10/20/100; Omni Flash text at 6 seconds costs 10, and its 8-second
+first+last-frame or single-ingredient modes cost 12. Flow silently changed requested Lite
+frame-pair/ingredient jobs to Omni in earlier tests; request Omni explicitly for these modes.
+See [capabilities](docs/capabilities.md) for the measured scope.
 
 After updating, restart your MCP client so it loads the proxy version of the server.
 
 ## Notes that matter
 
 - **Images are effectively free** against the monthly Flow credit pool; **video
-  consumes credits** (Veo 3.1 Lite ~10, Fast ~20, Quality ~100; Omni Flash ~15-30 of
+  consumes credits** (Veo 3.1 Lite ~10, Fast ~20, Quality ~100; Omni Flash 10 for 6s text / 12 for 8s references, out of
   ~1000/month). Video shows a credit-confirmation dialog which the server approves.
 - **Model/duration must be a valid combo** or Flow's agent asks for clarification and
-  nothing generates (e.g. Veo 3.1 Lite is 8s-only on the Pro plan; Omni Flash 4-10s).
+  nothing generates (e.g. Veo 3.1 Lite is 8s-only on the Pro plan; measured Omni modes are 6s text and 8s references).
 - Flow is **agent-first**: prompts are wrapped imperatively so the agent generates
   directly instead of asking questions.
 - The UI language follows your Google account; navigation selectors cover IT/FR/EN.

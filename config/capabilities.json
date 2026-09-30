@@ -15,7 +15,14 @@
       "downloadResolutions": [
         "1K"
       ],
-      "credits": 0
+      "credits": 0,
+      "downloadFormats": [
+        "jpg"
+      ],
+      "observedReferenceCounts": [
+        0,
+        1
+      ]
     },
     "nano-banana-pro": {
       "aspectRatios": [
@@ -26,8 +33,17 @@
         "9:16"
       ],
       "maxReferences": null,
-      "downloadResolutions": [],
-      "credits": null
+      "downloadResolutions": [
+        "1K"
+      ],
+      "credits": 0,
+      "downloadFormats": [
+        "jpg"
+      ],
+      "observedReferenceCounts": [
+        0,
+        1
+      ]
     },
     "nano-banana-2-lite": {
       "aspectRatios": [
@@ -38,8 +54,16 @@
         "9:16"
       ],
       "maxReferences": null,
-      "downloadResolutions": [],
-      "credits": null
+      "downloadResolutions": [
+        "1K"
+      ],
+      "credits": 0,
+      "downloadFormats": [
+        "jpg"
+      ],
+      "observedReferenceCounts": [
+        0
+      ]
     }
   },
   "video": {
@@ -56,17 +80,23 @@
         "text": true,
         "firstFrame": true,
         "lastFrame": null,
-        "ingredients": null
+        "ingredients": false,
+        "frames": false
       },
-      "forbiddenCombinations": []
+      "forbiddenCombinations": [
+        "lastFrame (Flow switches to Omni)",
+        "ingredients (Flow switches to Omni)"
+      ]
     },
     "veo-3.1-fast": {
       "aspectRatios": [
         "16:9",
         "9:16"
       ],
-      "durations": [],
-      "credits": null,
+      "durations": [
+        8
+      ],
+      "credits": 20,
       "modes": {
         "text": true,
         "firstFrame": null,
@@ -80,8 +110,10 @@
         "16:9",
         "9:16"
       ],
-      "durations": [],
-      "credits": null,
+      "durations": [
+        8
+      ],
+      "credits": 100,
       "modes": {
         "text": true,
         "firstFrame": null,
@@ -95,15 +127,42 @@
         "16:9",
         "9:16"
       ],
-      "durations": [],
-      "credits": null,
+      "durations": [
+        6,
+        8
+      ],
+      "credits": 10,
       "modes": {
         "text": true,
         "firstFrame": null,
         "lastFrame": null,
-        "ingredients": null
+        "ingredients": true,
+        "frames": true
       },
-      "forbiddenCombinations": []
+      "forbiddenCombinations": [
+        "mixed frames and ingredients (unmeasured)",
+        "lastFrame only (unmeasured)",
+        "firstFrame only (unmeasured)"
+      ],
+      "creditsByMode": {
+        "text": 10,
+        "frames": 12,
+        "ingredients": 12
+      },
+      "durationsByMode": {
+        "text": [
+          6
+        ],
+        "frames": [
+          8
+        ],
+        "ingredients": [
+          8
+        ]
+      },
+      "observedIngredientCounts": [
+        1
+      ]
     }
   },
   "selection": {

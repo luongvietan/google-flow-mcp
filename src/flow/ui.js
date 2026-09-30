@@ -62,6 +62,7 @@ export function buildPrompt(job, ingredients) {
     ? `Generate exactly one ${job.duration}-second video now.`
     : 'Generate exactly one image now.'];
   parts.push('Do not ask questions and do not offer alternatives.');
+  if (job.flowModel) parts.push(`Use exactly the ${job.flowModel} model. Do not substitute another model. If that model cannot perform this request, do not generate any media and explain the unsupported combination.`);
   ingredients.forEach((item, index) => parts.push(ROLE_TEXT[item.role](index + 1)));
   parts.push('Follow the description exactly: include every element it mentions and add nothing it does not ask for.');
   parts.push(`Description: ${job.prompt}`);
