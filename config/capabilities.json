@@ -48,11 +48,13 @@
         "16:9",
         "9:16"
       ],
-      "durations": [],
-      "credits": null,
+      "durations": [
+        8
+      ],
+      "credits": 10,
       "modes": {
         "text": true,
-        "firstFrame": null,
+        "firstFrame": true,
         "lastFrame": null,
         "ingredients": null
       },

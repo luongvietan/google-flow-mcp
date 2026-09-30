@@ -163,13 +163,32 @@ export class FlowSession {
     await send.click();
   }
 
-  // generatedOnly: agent results only — chat options carry alt="Option N" in every UI language;
-  // uploaded ingredients appear as project media too and must never count as results.
+  // generatedOnly: agent results only, read from the chat's <flow-a2ui-image-option> and
+  // <flow-a2ui-video-option> elements (uploaded ingredients also become project media and must
+  // never count as results). A video option shows an image thumbnail with the video's uuid.
   async mediaSnapshot({ generatedOnly = false } = {}) {
-    const urls = await this.page.evaluate((onlyGenerated) => [...document.querySelectorAll('img,video,source')]
-      .filter((el) => !onlyGenerated || el.tagName !== 'IMG' || /^Option \d+$/u.test(el.alt))
-      .flatMap((el) => [el.currentSrc, el.src, el.getAttribute('poster')]).filter(Boolean), generatedOnly);
-    return extractMedia(urls);
+    if (!generatedOnly) {
+      const urls = await this.page.evaluate(() => [...document.querySelectorAll('img,video,source')]
+        .flatMap((el) => [el.currentSrc, el.src, el.getAttribute('poster')]).filter(Boolean));
+      return extractMedia(urls);
+    }
+    const options = await this.page.evaluate(() => [...document.querySelectorAll('flow-a2ui-image-option img, flow-a2ui-video-option img')]
+      .map((img) => ({ kind: img.closest('flow-a2ui-video-option') ? 'video' : 'image', url: img.currentSrc || img.src })));
+    const byUuid = new Map();
+    for (const { kind, url } of options) {
+      for (const item of extractMedia([url])) if (!byUuid.has(item.uuid)) byUuid.set(item.uuid, { ...item, kind });
+    }
+    return [...byUuid.values()];
+  }
+
+  // The signed video URL is only put on the grid tile's <video> once the tile is hovered.
+  async #videoUrl(uuid) {
+    await this.dismissOverlays();
+    const tile = this.page.locator('flow-video-tile').filter({ has: this.page.locator(`img[src*="${uuid}"], video[src*="${uuid}"]`) }).first();
+    await tile.hover({ timeout: 15_000 });
+    const video = this.page.locator(`video[src*="/video/${uuid}"]`).first();
+    await video.waitFor({ state: 'attached', timeout: 15_000 });
+    return video.getAttribute('src');
   }
 
   async #busy() {
@@ -178,13 +197,27 @@ export class FlowSession {
     return !sendVisible || progressTile;
   }
 
+  // Failed generations render a tile with <mat-icon class="error-icon">warning</mat-icon> and Flow's own message.
+  async #errorTexts() {
+    return this.page.evaluate(() => [...document.querySelectorAll('mat-icon.error-icon')]
+      .map((icon) => (icon.closest('.error-tile') ?? icon.parentElement?.parentElement ?? icon).innerText.replace(/\s+/gu, ' ').trim()));
+  }
+
   async waitForMedia(kind, baseline, { timeoutMs, progress }) {
     const deadline = Date.now() + timeoutMs;
+    const errorsAtStart = (await this.#errorTexts()).length;
     let idleSince = null;
     while (Date.now() < deadline) {
       await this.page.waitForTimeout(3_000);
       const fresh = (await this.mediaSnapshot({ generatedOnly: true })).filter((item) => item.kind === kind && !baseline.has(item.uuid));
       if (fresh.length > 0) return fresh;
+      const errors = await this.#errorTexts();
+      if (errors.length > errorsAtStart) {
+        const screenshot = await takeScreenshot(this.page, 'generation-failed').catch(() => null);
+        throw new DaemonError(JobErrorCodes.GENERATION_FAILED,
+          `Flow could not generate the ${kind}: ${errors[0].replace(/^warning\s*/u, '').replace(/\s*(refresh|undo|delete_forever)/gu, '')}`,
+          { screenshot });
+      }
       if (await this.#busy()) {
         idleSince = null;
         progress(kind === 'video' ? 'rendering video' : 'generating image');
@@ -199,7 +232,13 @@ export class FlowSession {
   }
 
   async download(media, outputDir) {
-    const response = await this.page.request.get(media.url, { timeout: 120_000 });
+    let url = media.url;
+    if (media.kind === 'video' && !url.includes('/video/')) {
+      url = await this.#videoUrl(media.uuid).catch((err) => {
+        throw new FlowError(ErrorCodes.DOWNLOAD_FAILED, `No playable video for ${media.uuid}: ${err.message}`, { mediaUuids: [media.uuid] });
+      });
+    }
+    const response = await this.page.request.get(url, { timeout: 120_000 });
     const mediaType = (response.headers()['content-type'] ?? '').split(';')[0].trim();
     if (!response.ok() || !mediaType.startsWith(`${media.kind}/`)) {
       throw new FlowError(ErrorCodes.DOWNLOAD_FAILED, `Download of ${media.uuid} returned HTTP ${response.status()} ${mediaType}`,

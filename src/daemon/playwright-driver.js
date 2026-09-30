@@ -67,7 +67,7 @@ export class PlaywrightFlowDriver {
 
   async redownload(uuid, kind, outputDir) {
     const session = await this.#session();
-    const found = (await session.mediaSnapshot()).find((item) => item.uuid === uuid && item.kind === kind);
+    const found = (await session.mediaSnapshot({ generatedOnly: true })).find((item) => item.uuid === uuid && item.kind === kind);
     if (!found) throw new FlowError(ErrorCodes.DOWNLOAD_FAILED, `Media ${uuid} is no longer on the Flow page`);
     return session.download(found, outputDir);
   }
