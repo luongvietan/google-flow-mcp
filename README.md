@@ -91,8 +91,16 @@ created on first start.
 Every generation job needs `confirmCredits: true`. A repeated `idempotencyKey` returns the
 existing queued, running or succeeded job instead of spending credits again.
 
-Models: `nano-banana-2`, `nano-banana-pro`, `veo-3.1-lite`, `veo-3.1-fast`, `veo-3.1-quality`,
-`omni-flash`. Reference inputs are rejected with `UNSUPPORTED_INPUT` until reference automation lands.
+Models: `nano-banana-2`, `nano-banana-pro`, `nano-banana-2-lite`, `veo-3.1-lite`, `veo-3.1-fast`,
+`veo-3.1-quality`, `omni-flash` (Omni 1.1 Flash). Images accept ratios 16:9, 4:3, 1:1, 3:4, 9:16;
+videos 16:9 and 9:16. Reference images (image jobs), first/last frames and ingredients (video jobs)
+are uploaded through Flow's ingredient picker.
+
+The driver targets `https://flow.google.com/`, finds controls by their Material icon names, sets
+model/ratio/count in Flow's settings panel before each job and switches Flow's "confirm before
+generating" option to "never" — the daemon's `confirmCredits` flag is the spending gate. It refuses
+to run when the signed-in account differs from `expectedAccount`. Flow adds a visible AI watermark
+in some regions.
 
 After updating, restart your MCP client so it loads the proxy version of the server.
 

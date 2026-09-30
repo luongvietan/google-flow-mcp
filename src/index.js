@@ -67,7 +67,7 @@ const TOOL_DEFINITIONS = [
       type: 'object',
       properties: {
         prompt: { type: 'string', description: 'The text prompt for image generation.' },
-        model: { type: 'string', description: 'Model to use: Nano Banana Pro, Nano Banana 2, or Imagen 4.', default: 'Nano Banana 2' },
+        model: { type: 'string', description: 'Model: Nano Banana 2 (default), Nano Banana Pro, Nano Banana 2 Lite.', default: 'Nano Banana 2' },
         auto_confirm: { type: 'boolean', description: '⚠️ CRÉDITS. Si false (défaut): prépare seulement, ne consomme rien. Si true: vérifie que le mode Image est actif, PUIS clique Generate (consomme des crédits).', default: false },
         ratio: { type: 'string', description: 'Aspect ratio: 1:1, 16:9, 9:16, 4:3, 3:4.', default: '1:1' },
         reference_images: { type: 'array', items: { type: 'string' }, description: 'Paths to reference images (optional).' },
@@ -85,10 +85,11 @@ const TOOL_DEFINITIONS = [
       type: 'object',
       properties: {
         prompt: { type: 'string', description: 'The text prompt for video generation.' },
-        model: { type: 'string', description: 'Model: lite (Veo 3.1 Lite, cheapest), fast, quality, flash (Omni Flash), or exact name.', default: 'fast' },
+        model: { type: 'string', description: 'Model: lite, fast (default), quality, flash (Omni 1.1 Flash), or the exact Flow name.', default: 'fast' },
         auto_confirm: { type: 'boolean', description: '⚠️ CREDITI. false (default): prepara soltanto. true: genera davvero (consuma crediti Flow) e scarica.', default: false },
-        ratio: { type: 'string', description: 'Aspect ratio: 16:9, 9:16, 1:1.', default: '16:9' },
+        ratio: { type: 'string', description: 'Aspect ratio: 16:9 or 9:16.', default: '16:9' },
         duration: { type: 'string', description: 'Duration like "4s", "6s", "8s".', default: '4s' },
+        reference_images: { type: 'array', items: { type: 'string' }, description: 'Paths to images the video must include as ingredients (optional).' },
         project_name: { type: 'string', description: 'Name for the project (will reuse existing project with same campaign, or create new).' },
         campaign: { type: 'string', description: 'Campaign identifier for project matching.' },
       },

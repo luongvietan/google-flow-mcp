@@ -44,4 +44,6 @@ test('rejects malformed requests', () => {
   rejects({ ...image, references: [42] }, /references/);
   rejects({ ...image, idempotencyKey: 'short' }, /idempotencyKey/);
   rejects({ ...image, project: '' }, /project/);
+  rejects({ ...video, aspectRatio: '1:1' }, /not available for video/);
+  rejects({ ...image, aspectRatio: '2:1' }, /not available for image/);
 });

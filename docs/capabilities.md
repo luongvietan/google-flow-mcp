@@ -73,3 +73,21 @@ replace the Italian wrapper the handlers prepend to every prompt.
 Per-model credit cost, allowed video durations, maximum ingredients, frame/ingredient modes per
 video model, download resolutions, and the texts Flow shows for content refusal, missing credits
 and clarification questions. Measuring these requires generations and belongs to Plan A2.
+
+## Live results (Plan A2, 2026-10-01)
+
+| Check | Result |
+| --- | --- |
+| Nano Banana 2, 1:1, x1, text only | JPEG 1024×1024 from the signed `flow-content.google/image/…` URL, visible sparkle watermark bottom-right, one new image in the project |
+| Credit cost, Nano Banana 2 | 0 (balance 1.050 before and after; the stray 16:9 image earlier also cost 0) |
+| New project | the fixed `add` ("Dự án mới") button on the home page creates a project; `Start Creating` only reopens the most recent project |
+| Send button | stays disabled for a moment after text is inserted; wait for it to enable |
+| Account panel | `role="dialog"` without a backdrop; closes through its own `close` icon |
+| Reference image (Nano Banana 2) | works: the result keeps the reference's scene; 0 credits |
+| Ingredient picker | "Add to prompt" adds the *active* `.asset-item`, which stays on the previous asset after an upload; a new upload first shows as a placeholder and is selectable once its `flow-content.google` thumbnail loads; select it by file name |
+| Uploads in results | uploaded ingredients become project media; agent results are identified by chat thumbnails with `alt="Option N"` (English in every UI language) |
+| Veo 3.1 Lite, text, 9:16, 8 s | MP4 720×1280, 8.0 s, with audio; 10 credits (1.050 → 1.040); small "Veo" mark bottom-right |
+| Veo 3.1 Lite, first frame | works; frame 0 is the reference image (a 1:1 reference is letterboxed in 9:16 — use references in the video's ratio); 10 credits |
+| Veo 3.1 Lite, 6 s | refused by the agent: "only supports generating 8-second videos" on this tier; suggests Omni 1.1 Flash for 6 s; not charged |
+| Flow-side failure | tile with `mat-icon.error-icon` ("not charged for this generation") → `GENERATION_FAILED` |
+| Video results | chat `<flow-a2ui-video-option>` shows an image thumbnail with the video's uuid; the signed `flow-content.google/video/<uuid>` URL appears on the grid `<flow-video-tile>`'s `<video>` after hover |
