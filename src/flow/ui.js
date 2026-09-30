@@ -14,7 +14,6 @@ export const RATIO_ICONS = Object.freeze({
 
 // Text-labelled controls, per UI language seen so far.
 export const LABELS = Object.freeze({
-  startCreating: ['Start Creating'],
   save: ['Lưu', 'Save', 'Salva', 'Enregistrer'],
   addToPrompt: ['Thêm vào câu lệnh', 'Add to prompt'],
 });

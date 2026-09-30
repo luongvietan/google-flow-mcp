@@ -73,3 +73,13 @@ replace the Italian wrapper the handlers prepend to every prompt.
 Per-model credit cost, allowed video durations, maximum ingredients, frame/ingredient modes per
 video model, download resolutions, and the texts Flow shows for content refusal, missing credits
 and clarification questions. Measuring these requires generations and belongs to Plan A2.
+
+## Live results (Plan A2, 2026-10-01)
+
+| Check | Result |
+| --- | --- |
+| Nano Banana 2, 1:1, x1, text only | JPEG 1024×1024 from the signed `flow-content.google/image/…` URL, visible sparkle watermark bottom-right, one new image in the project |
+| Credit cost, Nano Banana 2 | 0 (balance 1.050 before and after; the stray 16:9 image earlier also cost 0) |
+| New project | the fixed `add` ("Dự án mới") button on the home page creates a project; `Start Creating` only reopens the most recent project |
+| Send button | stays disabled for a moment after text is inserted; wait for it to enable |
+| Account panel | `role="dialog"` without a backdrop; closes through its own `close` icon |

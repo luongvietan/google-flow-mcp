@@ -3,23 +3,106 @@
   "discoveredAt": "2026-10-01",
   "uiLanguage": "vi",
   "image": {
-    "nano-banana-2": { "aspectRatios": ["16:9", "4:3", "1:1", "3:4", "9:16"], "maxReferences": null, "downloadResolutions": [], "credits": null },
-    "nano-banana-pro": { "aspectRatios": ["16:9", "4:3", "1:1", "3:4", "9:16"], "maxReferences": null, "downloadResolutions": [], "credits": null },
-    "nano-banana-2-lite": { "aspectRatios": ["16:9", "4:3", "1:1", "3:4", "9:16"], "maxReferences": null, "downloadResolutions": [], "credits": null }
+    "nano-banana-2": {
+      "aspectRatios": [
+        "16:9",
+        "4:3",
+        "1:1",
+        "3:4",
+        "9:16"
+      ],
+      "maxReferences": null,
+      "downloadResolutions": [
+        "1K"
+      ],
+      "credits": 0
+    },
+    "nano-banana-pro": {
+      "aspectRatios": [
+        "16:9",
+        "4:3",
+        "1:1",
+        "3:4",
+        "9:16"
+      ],
+      "maxReferences": null,
+      "downloadResolutions": [],
+      "credits": null
+    },
+    "nano-banana-2-lite": {
+      "aspectRatios": [
+        "16:9",
+        "4:3",
+        "1:1",
+        "3:4",
+        "9:16"
+      ],
+      "maxReferences": null,
+      "downloadResolutions": [],
+      "credits": null
+    }
   },
   "video": {
-    "veo-3.1-lite": { "aspectRatios": ["16:9", "9:16"], "durations": [], "credits": null,
-      "modes": { "text": true, "firstFrame": null, "lastFrame": null, "ingredients": null },
-      "forbiddenCombinations": [] },
-    "veo-3.1-fast": { "aspectRatios": ["16:9", "9:16"], "durations": [], "credits": null,
-      "modes": { "text": true, "firstFrame": null, "lastFrame": null, "ingredients": null },
-      "forbiddenCombinations": [] },
-    "veo-3.1-quality": { "aspectRatios": ["16:9", "9:16"], "durations": [], "credits": null,
-      "modes": { "text": true, "firstFrame": null, "lastFrame": null, "ingredients": null },
-      "forbiddenCombinations": [] },
-    "omni-flash": { "aspectRatios": ["16:9", "9:16"], "durations": [], "credits": null,
-      "modes": { "text": true, "firstFrame": null, "lastFrame": null, "ingredients": null },
-      "forbiddenCombinations": [] }
+    "veo-3.1-lite": {
+      "aspectRatios": [
+        "16:9",
+        "9:16"
+      ],
+      "durations": [],
+      "credits": null,
+      "modes": {
+        "text": true,
+        "firstFrame": null,
+        "lastFrame": null,
+        "ingredients": null
+      },
+      "forbiddenCombinations": []
+    },
+    "veo-3.1-fast": {
+      "aspectRatios": [
+        "16:9",
+        "9:16"
+      ],
+      "durations": [],
+      "credits": null,
+      "modes": {
+        "text": true,
+        "firstFrame": null,
+        "lastFrame": null,
+        "ingredients": null
+      },
+      "forbiddenCombinations": []
+    },
+    "veo-3.1-quality": {
+      "aspectRatios": [
+        "16:9",
+        "9:16"
+      ],
+      "durations": [],
+      "credits": null,
+      "modes": {
+        "text": true,
+        "firstFrame": null,
+        "lastFrame": null,
+        "ingredients": null
+      },
+      "forbiddenCombinations": []
+    },
+    "omni-flash": {
+      "aspectRatios": [
+        "16:9",
+        "9:16"
+      ],
+      "durations": [],
+      "credits": null,
+      "modes": {
+        "text": true,
+        "firstFrame": null,
+        "lastFrame": null,
+        "ingredients": null
+      },
+      "forbiddenCombinations": []
+    }
   },
   "selection": {
     "model": "ui",
@@ -27,5 +110,9 @@
     "duration": "prompt",
     "attachControl": "Thêm thành phần vào ô nhập câu lệnh"
   },
-  "failureTexts": { "contentRejected": null, "insufficientCredits": null, "clarification": null }
+  "failureTexts": {
+    "contentRejected": null,
+    "insufficientCredits": null,
+    "clarification": null
+  }
 }

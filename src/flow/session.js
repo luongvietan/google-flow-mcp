@@ -61,8 +61,9 @@ export class FlowSession {
       return this.page.url();
     }
     await this.page.goto(FLOW_HOME, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-    const start = this.page.locator('button').filter({ hasText: exactText(LABELS.startCreating) }).first();
-    await start.click({ timeout: 15_000 }).catch(async () => { throw await this.uiChanged('Flow home has no "Start Creating" button', 'no-start-creating'); });
+    // The fixed "add New project" button creates a project; "Start Creating" only reopens the latest one.
+    await this.icon(ICONS.add).first().click({ timeout: 15_000 })
+      .catch(async () => { throw await this.uiChanged('Flow home has no "New project" (add) button', 'no-new-project'); });
     await this.page.waitForURL(/\/project\/[0-9a-f-]{36}/u, { timeout: 30_000 });
     const url = this.page.url().split('?')[0];
     await this.#waitForPromptBar();
@@ -138,7 +139,10 @@ export class FlowSession {
     const send = this.icon(ICONS.send).last();
     await send.waitFor({ state: 'visible', timeout: 10_000 })
       .catch(async () => { throw await this.uiChanged('Flow send button (arrow_forward) is not available', 'no-send-button'); });
-    if (await send.isDisabled()) throw await this.uiChanged('Flow send button is disabled', 'send-disabled');
+    // The button enables a moment after the text lands in the prompt box.
+    const handle = await send.elementHandle();
+    await this.page.waitForFunction((el) => !el.disabled && el.getAttribute('aria-disabled') !== 'true', handle, { timeout: 10_000 })
+      .catch(async () => { throw await this.uiChanged('Flow send button stayed disabled', 'send-disabled'); });
     await send.click();
   }
 
@@ -190,11 +194,16 @@ export class FlowSession {
   }
 
   // Reads "1.050 tín dụng Google Flow" (or "1,050 … credits") from the account menu.
+  // The account panel is a role=dialog without a backdrop; it closes through its own close icon.
   async credits() {
     await this.dismissOverlays();
-    await this.page.locator('[role="button"]').filter({ hasText: /^\s*PRO\s*$/u }).first().click();
-    const text = await this.page.locator('.cdk-overlay-pane').last().innerText({ timeout: 10_000 });
-    await this.dismissOverlays();
+    const panel = this.page.locator('[role="dialog"]').filter({ hasText: /tín dụng|credits/iu }).first();
+    if (!(await panel.isVisible().catch(() => false))) {
+      await this.page.locator('[role="button"]').filter({ hasText: /^\s*PRO\s*$/u }).first().click();
+      await panel.waitFor({ state: 'visible', timeout: 10_000 });
+    }
+    const text = await panel.innerText();
+    await panel.locator('button:has(:text-is("close"))').first().click();
     const match = /([\d.,]+)\s*(tín dụng|credits)/iu.exec(text);
     return match ? Number(match[1].replace(/[.,]/gu, '')) : null;
   }
