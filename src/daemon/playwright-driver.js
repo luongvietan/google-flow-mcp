@@ -1,99 +1,74 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { getPage, isBrowserConnected } from '../browser/connect.js';
-import { launchKiaraProfile, navigateToFlow } from '../browser/launch-profile.js';
-import { verifyAccount } from '../browser/account-check.js';
-import { handleGenerateImage } from '../tools/generate-image.js';
-import { handleGenerateVideo } from '../tools/generate-video.js';
+import { launchKiaraProfile } from '../browser/launch-profile.js';
 import { FlowError, ErrorCodes } from '../utils/errors.js';
+import { FlowSession } from '../flow/session.js';
+import { FLOW_HOME, buildPrompt, orderIngredients } from '../flow/ui.js';
 import { DaemonError, JobErrorCodes } from './errors.js';
 
-const MEDIA_URL = 'https://labs.google/fx/api/trpc/media.getMediaUrlRedirect?name=';
-
-function mediaTypeFor(file) {
-  const extension = path.extname(file).toLowerCase();
-  if (extension === '.png') return 'image/png';
-  if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg';
-  if (extension === '.mp4') return 'video/mp4';
-  throw new FlowError(ErrorCodes.DOWNLOAD_FAILED, `Unexpected downloaded file type ${extension}`);
-}
-
-function toMedia(result) {
-  if (!Array.isArray(result?.media)) throw new FlowError(ErrorCodes.DOWNLOAD_FAILED, 'Handler returned no media list');
-  return result.media.map(({ file, uuid }) => ({ file, mediaType: mediaTypeFor(file), mediaUuid: uuid }));
-}
-
-// Reference automation (image references, Frames to Video, Ingredients) arrives in Plan A2.
-function rejectReferences(job) {
-  const { references, firstFrame, lastFrame, ingredients } = job.inputs;
-  if (references.length || ingredients.length || firstFrame || lastFrame) {
-    throw new DaemonError(JobErrorCodes.UNSUPPORTED_INPUT,
-      'Reference images, frames and ingredients are not automated yet in this daemon version');
+async function connectToFlow() {
+  if (!isBrowserConnected()) await launchKiaraProfile(false);
+  const page = getPage();
+  if (!page.url().startsWith(FLOW_HOME)) await page.goto(FLOW_HOME, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+  if (page.url().includes('accounts.google.com')) {
+    throw new FlowError(ErrorCodes.NOT_LOGGED_IN, 'Flow redirected to Google sign-in; sign in once in the dedicated Chrome (scripts/ensure-flow-chrome.ps1).');
   }
+  return page;
 }
 
 export class PlaywrightFlowDriver {
-  async #connect() {
-    if (!isBrowserConnected()) await launchKiaraProfile(false);
-    const page = getPage();
-    if (!page.url().includes('labs.google')) {
-      const navigation = await navigateToFlow(page);
-      if (navigation?.authenticated === false) {
-        throw new FlowError(ErrorCodes.NOT_LOGGED_IN,
-          'Flow needs a manual sign-in: run scripts/ensure-flow-chrome.ps1, sign in to Google and click "Sign in to Flow".');
-      }
-    }
-    if (page.url().includes('accounts.google.com')) {
-      throw new FlowError(ErrorCodes.NOT_LOGGED_IN, 'Flow redirected to Google sign-in; sign in once in the dedicated Chrome.');
-    }
-    return page;
+  constructor({ registryFile, expectedAccount, renderTimeoutMs = 900_000, connect = connectToFlow,
+    sessionFactory = (page) => new FlowSession(page, { registryFile }) } = {}) {
+    Object.assign(this, { expectedAccount, renderTimeoutMs, connect, sessionFactory });
+  }
+
+  async #session() {
+    return this.sessionFactory(await this.connect());
   }
 
   async health() {
+    let session;
     try {
-      await this.#connect();
+      session = await this.#session();
     } catch (err) {
       return { chrome: err.code === ErrorCodes.NOT_LOGGED_IN, loggedIn: false, error: err.message };
     }
-    try {
-      const account = await verifyAccount();
-      return { chrome: true, loggedIn: true, account: account.account };
-    } catch (err) {
-      return { chrome: true, loggedIn: false, error: err.message };
+    const account = await session.account();
+    return account ? { chrome: true, loggedIn: true, account } : { chrome: true, loggedIn: false, error: 'No Google account chip on the Flow page' };
+  }
+
+  generateImage(job, progress) { return this.#generate(job, progress); }
+  generateVideo(job, progress) { return this.#generate(job, progress); }
+
+  async #generate(job, progress) {
+    const session = await this.#session();
+    const account = await session.account();
+    if (this.expectedAccount && account !== this.expectedAccount) {
+      throw new DaemonError(JobErrorCodes.ACCOUNT_MISMATCH,
+        `Flow is signed in as ${account ?? 'nobody'}, expected ${this.expectedAccount}`);
     }
-  }
-
-  async generateImage(job, progress) {
-    rejectReferences(job);
-    await this.#connect();
-    progress('generating image');
-    return toMedia(await handleGenerateImage({
-      prompt: job.prompt, model: job.flowModel, ratio: job.aspectRatio, auto_confirm: true,
-      output_folder: job.outputDir, project_name: job.project, campaign: job.project,
-    }));
-  }
-
-  async generateVideo(job, progress) {
-    rejectReferences(job);
-    await this.#connect();
-    progress('rendering video');
-    return toMedia(await handleGenerateVideo({
-      prompt: job.prompt, model: job.flowModel, ratio: job.aspectRatio, duration: `${job.duration}s`,
-      auto_confirm: true, output_folder: job.outputDir, project_name: job.project, campaign: job.project,
-    }));
+    progress('opening project');
+    await session.openProject(job.project);
+    progress('configuring model');
+    await session.configure({ kind: job.kind, flowModel: job.flowModel, aspectRatio: job.aspectRatio });
+    await session.clearPrompt();
+    const ingredients = orderIngredients(job);
+    if (ingredients.length > 0) {
+      progress('attaching references');
+      await session.attachIngredients(ingredients.map((item) => item.file));
+    }
+    const baseline = new Set((await session.mediaSnapshot()).map((item) => item.uuid));
+    progress('sending prompt');
+    await session.typePrompt(buildPrompt(job, ingredients));
+    await session.send();
+    const [first] = await session.waitForMedia(job.kind, baseline, { timeoutMs: this.renderTimeoutMs, progress });
+    progress('downloading');
+    return [await session.download(first, job.outputDir)];
   }
 
   async redownload(uuid, kind, outputDir) {
-    const page = await this.#connect();
-    const response = await page.request.get(`${MEDIA_URL}${encodeURIComponent(uuid)}`, { timeout: 60_000 });
-    const mediaType = (response.headers()['content-type'] ?? '').split(';')[0].trim();
-    if (!response.ok() || !mediaType.startsWith(kind === 'image' ? 'image/' : 'video/')) {
-      throw new FlowError(ErrorCodes.DOWNLOAD_FAILED, `Redownload of ${uuid} returned HTTP ${response.status()} ${mediaType}`);
-    }
-    fs.mkdirSync(outputDir, { recursive: true });
-    const extension = mediaType === 'image/png' ? '.png' : mediaType.startsWith('image/') ? '.jpg' : '.mp4';
-    const file = path.join(outputDir, `flow_${uuid.slice(0, 8)}${extension}`);
-    fs.writeFileSync(file, await response.body());
-    return { file, mediaType, mediaUuid: uuid };
+    const session = await this.#session();
+    const found = (await session.mediaSnapshot()).find((item) => item.uuid === uuid && item.kind === kind);
+    if (!found) throw new FlowError(ErrorCodes.DOWNLOAD_FAILED, `Media ${uuid} is no longer on the Flow page`);
+    return session.download(found, outputDir);
   }
 }
