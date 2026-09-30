@@ -109,7 +109,9 @@ export class FlowSession {
   async clearPrompt() {
     await this.dismissOverlays();
     const chips = this.page.locator('button.chip-container:has(mat-icon:text-is("cancel"))');
-    while (await chips.count()) {
+    // Bounded: a chip that survives its cancel click must not hold the browser lock forever.
+    for (let attempt = 0; await chips.count(); attempt += 1) {
+      if (attempt >= 20) throw await this.uiChanged('Old ingredient chips could not be removed from the prompt', 'chips-not-cleared');
       const chip = chips.first();
       await chip.hover();
       await chip.locator('mat-icon').filter({ hasText: /^cancel$/u }).click();

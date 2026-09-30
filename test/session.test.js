@@ -51,3 +51,19 @@ test('credit reading restores the page header after tile scrolling', async () =>
   const session = new FlowSession(page, { registryFile: 'unused' }); session.dismissOverlays = async () => {};
   assert.equal(await session.credits(), 854); assert.deepEqual(calls, ['scroll', 'open', 'close']);
 });
+
+test('clearing stale ingredient chips gives up instead of looping forever', async () => {
+  let clicks = 0;
+  const chip = { hover: async () => {}, locator: () => ({ filter: () => ({ click: async () => { clicks++; } }) }) };
+  const page = {
+    locator: (selector) => {
+      if (selector.startsWith('button.chip-container')) return { count: async () => 1, first: () => chip };
+      throw new Error(`Unexpected locator ${selector}`);
+    },
+    waitForTimeout: async () => {},
+  };
+  const session = new FlowSession(page, { registryFile: 'unused' });
+  session.dismissOverlays = async () => {};
+  await assert.rejects(session.clearPrompt(), (error) => error.code === 'UNKNOWN_UI_CHANGE');
+  assert.equal(clicks, 20);
+});

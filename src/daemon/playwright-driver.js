@@ -16,9 +16,11 @@ async function connectToFlow() {
 }
 
 export class PlaywrightFlowDriver {
-  constructor({ registryFile, expectedAccount, renderTimeoutMs = 900_000, connect = connectToFlow,
+  // verifyModel: false is an escape hatch for when Flow changes the undocumented history response
+  // the check reads; without it every job would spend credits and then fail with UI_CHANGED.
+  constructor({ registryFile, expectedAccount, renderTimeoutMs = 900_000, verifyModel = true, connect = connectToFlow,
     sessionFactory = (page) => new FlowSession(page, { registryFile }) } = {}) {
-    Object.assign(this, { expectedAccount, renderTimeoutMs, connect, sessionFactory });
+    Object.assign(this, { expectedAccount, renderTimeoutMs, verifyModel, connect, sessionFactory });
     this.verifiedMedia = new Map();
   }
 
@@ -63,8 +65,11 @@ export class PlaywrightFlowDriver {
     await session.typePrompt(buildPrompt(job, ingredients));
     await session.send();
     const [first] = await session.waitForMedia(job.kind, baseline, { timeoutMs: this.renderTimeoutMs, progress });
-    progress('verifying model');
-    const verified = await session.verifyMediaModel(first, job.flowModel);
+    let verified = first;
+    if (this.verifyModel) {
+      progress('verifying model');
+      verified = await session.verifyMediaModel(first, job.flowModel);
+    }
     this.verifiedMedia.set(verified.uuid, verified);
     if (this.verifiedMedia.size > 64) this.verifiedMedia.delete(this.verifiedMedia.keys().next().value);
     progress('downloading');

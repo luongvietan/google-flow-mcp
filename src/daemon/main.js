@@ -22,6 +22,7 @@ const driver = new PlaywrightFlowDriver({
   registryFile: path.join(dataDir, 'projects.json'),
   expectedAccount: get('expectedAccount'),
   renderTimeoutMs: get('videoGenerationTimeoutMs', 900_000),
+  verifyModel: get('verifyModel', true),
 });
 const runner = new JobRunner({
   store, uploads, driver, mutex, outputsDir: path.join(dataDir, 'outputs'),

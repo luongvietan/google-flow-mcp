@@ -110,6 +110,11 @@ ambiguous metadata fails with `UI_CHANGED`, and a substituted model fails with `
 Neither failure submits another generation. Verified signed media URLs stay in a bounded in-memory
 cache so download retries do not rely on opaque thumbnails after reload.
 
+The check runs after Flow has already charged for the render. If Flow changes that undocumented
+response and every job starts failing with `UI_CHANGED`, set `"verifyModel": false` in
+`config/flow.config.json` and restart the daemon: results are then downloaded without the model
+check, so a silent model substitution would go unnoticed until the check is repaired.
+
 Live measurements on 2026-10-01: Nano Banana 2/Pro/2 Lite images cost 0; Veo Lite/Fast/Quality
 8-second text videos cost 10/20/100; Omni Flash text at 6 seconds costs 10, and its 8-second
 first+last-frame or single-ingredient modes cost 12. Flow silently changed requested Lite

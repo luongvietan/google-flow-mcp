@@ -5,6 +5,7 @@
   "chromePath": "C:/Program Files/Google/Chrome/Application/chrome.exe",
   "cdpPort": 9222,
   "daemonPort": 47821,
+  "verifyModel": true,
   "headless": false,
   "videoGenerationTimeoutMs": 600000,
   "imageModels": {

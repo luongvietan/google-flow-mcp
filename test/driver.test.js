@@ -4,8 +4,8 @@ import { PlaywrightFlowDriver } from '../src/daemon/playwright-driver.js';
 import { FlowError, ErrorCodes } from '../src/utils/errors.js';
 
 class FakeSession {
-  constructor({ account = 'bot@example.com', media, downloadFails = false } = {}) {
-    Object.assign(this, { accountValue: account, calls: [], downloadFails });
+  constructor({ account = 'bot@example.com', media, downloadFails = false, actualModel } = {}) {
+    Object.assign(this, { accountValue: account, calls: [], downloadFails, actualModel });
     this.fresh = media ?? [{ kind: 'image', uuid: 'u-new', url: 'https://flow-content.google/image/u-new?Signature=x' }];
   }
   async account() { this.calls.push('account'); return this.accountValue; }
@@ -25,8 +25,8 @@ class FakeSession {
   }
 }
 
-function driverWith(session, expectedAccount = 'bot@example.com') {
-  return new PlaywrightFlowDriver({ expectedAccount, connect: async () => ({}), sessionFactory: () => session, renderTimeoutMs: 1000 });
+function driverWith(session, expectedAccount = 'bot@example.com', options = {}) {
+  return new PlaywrightFlowDriver({ expectedAccount, connect: async () => ({}), sessionFactory: () => session, renderTimeoutMs: 1000, ...options });
 }
 const imageJob = { kind: 'image', model: 'nano-banana-2', flowModel: 'Nano Banana 2', prompt: 'an apple', aspectRatio: '1:1',
   project: 'demo', outputDir: 'out', inputs: { references: ['r.png'], ingredients: [] } };
@@ -92,4 +92,11 @@ test('health reports the real account', async () => {
   assert.deepEqual(health, { chrome: true, loggedIn: true, account: 'bot@example.com' });
   const signedOut = await driverWith(new FakeSession({ account: null })).health();
   assert.equal(signedOut.loggedIn, false);
+});
+
+test('verifyModel false skips the metadata check but still downloads the result', async () => {
+  const session = new FakeSession({ actualModel: 'Omni 1.1 Flash' });
+  const media = await driverWith(session, 'bot@example.com', { verifyModel: false }).generateImage(imageJob, () => {});
+  assert.equal(session.calls.some((call) => call.startsWith('verify:')), false);
+  assert.equal(media[0].mediaUuid, 'u-new');
 });
