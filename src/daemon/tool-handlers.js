@@ -5,6 +5,7 @@ import { handleFlowStatus } from '../tools/flow-status.js';
 import path from 'node:path';
 import { legacyModel, parseDuration } from '../flow/ui.js';
 import { WIRE_MODELS } from './models.js';
+import { validateJobRequest } from './validate.js';
 import { handleDownloadLatest } from '../tools/download-latest.js';
 import { handleCreateCharacter } from '../tools/create-character.js';
 import { handleImportCharacter } from '../tools/import-character.js';
@@ -24,6 +25,8 @@ async function generateForTool(kind, args, options) {
   const model = legacyModel(kind, args?.model);
   const aspectRatio = args?.ratio ?? (kind === 'image' ? '1:1' : '16:9');
   const duration = kind === 'video' ? parseDuration(args?.duration) : undefined;
+  // Same checks as POST /jobs, so an unsupported ratio never reaches the settings panel.
+  validateJobRequest({ kind, model, prompt: args?.prompt, aspectRatio, duration, idempotencyKey: 'mcp-tool-call' });
   if (args?.auto_confirm !== true) {
     return { status: 'ready_for_confirmation', type: kind, model_used: WIRE_MODELS[model].flowName, ratio: aspectRatio, duration,
       message: 'Nothing was sent to Flow. Call again with auto_confirm=true to generate; this may spend Flow credits.' };

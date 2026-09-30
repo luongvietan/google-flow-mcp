@@ -87,7 +87,7 @@ const TOOL_DEFINITIONS = [
         prompt: { type: 'string', description: 'The text prompt for video generation.' },
         model: { type: 'string', description: 'Model: lite, fast (default), quality, flash (Omni 1.1 Flash), or the exact Flow name.', default: 'fast' },
         auto_confirm: { type: 'boolean', description: '⚠️ CREDITI. false (default): prepara soltanto. true: genera davvero (consuma crediti Flow) e scarica.', default: false },
-        ratio: { type: 'string', description: 'Aspect ratio: 16:9, 9:16, 1:1.', default: '16:9' },
+        ratio: { type: 'string', description: 'Aspect ratio: 16:9 or 9:16.', default: '16:9' },
         duration: { type: 'string', description: 'Duration like "4s", "6s", "8s".', default: '4s' },
         reference_images: { type: 'array', items: { type: 'string' }, description: 'Paths to images the video must include as ingredients (optional).' },
         project_name: { type: 'string', description: 'Name for the project (will reuse existing project with same campaign, or create new).' },
