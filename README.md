@@ -64,6 +64,38 @@ Register the server with your MCP client (Claude Code, etc.):
 
 Restart the client afterwards (the server loads into memory at startup).
 
+## Daemon
+
+Only one process may drive the Flow Chrome. `src/daemon/main.js` owns it, keeps a serial job
+queue in `data/jobs.json` and listens on `127.0.0.1:47821` (`daemonPort`). The MCP server starts
+the daemon on first use and forwards every tool call to it; other programs (for example the
+Hypit provider) submit generation jobs over HTTP.
+
+```bash
+npm run daemon
+curl http://127.0.0.1:47821/health
+```
+
+Requests other than `/health` need `authorization: Bearer <config/daemon-token>`; the token is
+created on first start.
+
+| Route | Purpose |
+| --- | --- |
+| `GET /health` | Chrome, sign-in and queue state |
+| `POST /uploads` | Reference image bytes (PNG/JPEG/WebP) → `{ id }` |
+| `POST /jobs` | `{ kind, model, prompt, aspectRatio, duration?, references?, firstFrame?, lastFrame?, ingredients?, project?, confirmCredits, idempotencyKey }` |
+| `GET /jobs/:id` | `queued` · `running` · `succeeded` · `failed` · `interrupted`, with phase and outputs |
+| `GET /jobs/:id/outputs/:n` | Generated file |
+| `POST /tools/:name` | Run one MCP tool under the browser lock |
+
+Every generation job needs `confirmCredits: true`. A repeated `idempotencyKey` returns the
+existing queued, running or succeeded job instead of spending credits again.
+
+Models: `nano-banana-2`, `nano-banana-pro`, `veo-3.1-lite`, `veo-3.1-fast`, `veo-3.1-quality`,
+`omni-flash`. Reference inputs are rejected with `UNSUPPORTED_INPUT` until reference automation lands.
+
+After updating, restart your MCP client so it loads the proxy version of the server.
+
 ## Notes that matter
 
 - **Images are effectively free** against the monthly Flow credit pool; **video
