@@ -212,9 +212,10 @@ export async function handleGenerateVideo(args) {
     }
 
     if (!mediaUuids.length && !videoSrc) {
-      await takeScreenshot(page, 'no-video-detected');
-      throw new FlowError(ErrorCodes.DOWNLOAD_FAILED,
-        'Generation completed but no video was detected in the DOM. Check the Flow project library.');
+      const shot = await takeScreenshot(page, 'no-video-detected');
+      throw new FlowError(ErrorCodes.GENERATION_TIMEOUT,
+        `No generated video appeared within ${Math.round(genTimeoutMs / 1000)}s. Check the Flow project library.`,
+        { screenshot: shot });
     }
 
     // Download via authenticated session. Try the media endpoint for each UUID
@@ -224,6 +225,7 @@ export async function handleGenerateVideo(args) {
       fs.mkdirSync(args.output_folder, { recursive: true });
     }
     const downloadedFiles = [];
+    const media = [];
 
     for (const uuid of mediaUuids) {
       try {
@@ -238,6 +240,7 @@ export async function handleGenerateVideo(args) {
             const destPath = path.join(outputDir, `flow_${uuid.substring(0, 8)}_${job.id}.mp4`);
             fs.writeFileSync(destPath, buffer);
             downloadedFiles.push(destPath);
+            media.push({ file: destPath, uuid });
             logger.info('Video downloaded', { uuid, size: buffer.length, path: destPath });
           }
         }
@@ -249,7 +252,8 @@ export async function handleGenerateVideo(args) {
     if (!downloadedFiles.length) {
       await takeScreenshot(page, 'video-download-failed');
       throw new FlowError(ErrorCodes.DOWNLOAD_FAILED,
-        `Video generated but download failed. UUIDs seen: ${mediaUuids.join(', ') || 'none'}; videoSrc: ${videoSrc || 'none'}`);
+        `Video generated but download failed. UUIDs seen: ${mediaUuids.join(', ') || 'none'}`,
+        { mediaUuids });
     }
 
     saveMetadata(job.id, {
@@ -265,6 +269,7 @@ export async function handleGenerateVideo(args) {
       duration,
       prompt: args.prompt,
       files: downloadedFiles,
+      media,
       video_count: downloadedFiles.length,
       credits_consumed: true,
     });
