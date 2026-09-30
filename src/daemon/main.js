@@ -18,14 +18,20 @@ const store = new JobStore(path.join(dataDir, 'jobs.json'));
 const interrupted = store.recoverInterrupted();
 const uploads = new UploadStore(path.join(dataDir, 'uploads'));
 const mutex = new Mutex();
-const driver = new PlaywrightFlowDriver();
+const driver = new PlaywrightFlowDriver({
+  registryFile: path.join(dataDir, 'projects.json'),
+  expectedAccount: get('expectedAccount'),
+  renderTimeoutMs: get('videoGenerationTimeoutMs', 900_000),
+});
 const runner = new JobRunner({
   store, uploads, driver, mutex, outputsDir: path.join(dataDir, 'outputs'),
   log: (message, data) => logger.info(message, data),
 });
 const server = createDaemonServer({
   token, store, uploads, runner, mutex, driver, expectedAccount: get('expectedAccount'),
-  callTool: (name, args) => callTool(name, args, { runnerStatus: () => runner.status() }),
+  callTool: (name, args) => callTool(name, args, {
+    runnerStatus: () => runner.status(), driver, outputsDir: path.join(dataDir, 'outputs'),
+  }),
 });
 const port = get('daemonPort', 47821);
 

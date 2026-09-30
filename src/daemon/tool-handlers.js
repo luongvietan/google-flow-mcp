@@ -2,8 +2,9 @@ import { launchKiaraProfile, navigateToFlow } from '../browser/launch-profile.js
 import { getPage, setBrowser, closeBrowser as closeBrowserConnection } from '../browser/connect.js';
 import { verifyAccount as checkAccount } from '../browser/account-check.js';
 import { handleFlowStatus } from '../tools/flow-status.js';
-import { handleGenerateImage } from '../tools/generate-image.js';
-import { handleGenerateVideo } from '../tools/generate-video.js';
+import path from 'node:path';
+import { legacyModel, parseDuration } from '../flow/ui.js';
+import { WIRE_MODELS } from './models.js';
 import { handleDownloadLatest } from '../tools/download-latest.js';
 import { handleCreateCharacter } from '../tools/create-character.js';
 import { handleImportCharacter } from '../tools/import-character.js';
@@ -17,6 +18,26 @@ import { jobQueue } from '../queue/job-queue.js';
 import { takeScreenshot } from '../utils/screenshots.js';
 import { logger } from '../utils/logger.js';
 import { DaemonError, JobErrorCodes } from './errors.js';
+
+// MCP entry to the same pipeline the daemon jobs use. auto_confirm !== true never touches Flow.
+async function generateForTool(kind, args, options) {
+  const model = legacyModel(kind, args?.model);
+  const aspectRatio = args?.ratio ?? (kind === 'image' ? '1:1' : '16:9');
+  const duration = kind === 'video' ? parseDuration(args?.duration) : undefined;
+  if (args?.auto_confirm !== true) {
+    return { status: 'ready_for_confirmation', type: kind, model_used: WIRE_MODELS[model].flowName, ratio: aspectRatio, duration,
+      message: 'Nothing was sent to Flow. Call again with auto_confirm=true to generate; this may spend Flow credits.' };
+  }
+  const job = {
+    kind, model, flowModel: WIRE_MODELS[model].flowName, prompt: args.prompt, aspectRatio, duration,
+    project: args.project_name ?? args.campaign,
+    outputDir: args.output_folder ?? path.join(options.outputsDir, 'mcp', new Date().toISOString().replace(/[:.]/gu, '-')),
+    inputs: { references: kind === 'image' ? (args.reference_images ?? []) : [], ingredients: kind === 'video' ? (args.reference_images ?? []) : [] },
+  };
+  const media = kind === 'image' ? await options.driver.generateImage(job, () => {}) : await options.driver.generateVideo(job, () => {});
+  return { status: 'success', type: kind, model_used: job.flowModel, ratio: aspectRatio, duration, prompt: args.prompt,
+    files: media.map((item) => item.file), credits_consumed: true };
+}
 
 export async function callTool(name, args, options) {
   logger.info('Tool called', { tool: name, args: args ? JSON.stringify(args).substring(0, 200) : 'none' });
@@ -65,8 +86,8 @@ export async function callTool(name, args, options) {
     case 'flow_status': return handleFlowStatus();
     case 'flow_account_check': return checkAccount(getPage());
     case 'flow_discover_ui': return handleDiscoverUi(args);
-    case 'flow_generate_image': return handleGenerateImage(args);
-    case 'flow_generate_video': return handleGenerateVideo(args);
+    case 'flow_generate_image': return generateForTool('image', args, options);
+    case 'flow_generate_video': return generateForTool('video', args, options);
     case 'flow_download_latest': return handleDownloadLatest(args);
     case 'flow_create_character': return handleCreateCharacter(args);
     case 'flow_import_character': return handleImportCharacter(args);
