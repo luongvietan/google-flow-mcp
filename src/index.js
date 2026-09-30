@@ -7,27 +7,15 @@ import {
   ErrorCode,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
+import path from 'node:path';
+import { get, getFlowHome } from './utils/config.js';
 import { logger } from './utils/logger.js';
-import { launchKiaraProfile, navigateToFlow } from './browser/launch-profile.js';
-import { getPage, getBrowser, setBrowser, closeBrowser as closeBrowserConnection } from './browser/connect.js';
-import { verifyAccount as checkAccount } from './browser/account-check.js';
-import { handleFlowOpen } from './tools/flow-open.js';
-import { handleFlowStatus } from './tools/flow-status.js';
-import { handleGenerateImage } from './tools/generate-image.js';
-import { handleGenerateVideo } from './tools/generate-video.js';
-import { handleDownloadLatest } from './tools/download-latest.js';
-import { handleCreateCharacter } from './tools/create-character.js';
-import { handleImportCharacter } from './tools/import-character.js';
-import { handleOpenCharacters } from './tools/open-characters.js';
-import { handleCreateScene } from './tools/create-scene.js';
-import { handleOpenToolsGallery } from './tools/open-tools-gallery.js';
-import { handleUseGridArchitect } from './tools/grid-architect.js';
-import { handleDiscoverUi } from './tools/discover-ui.js';
-import { handleUseFlowTool } from './tools/use-flow-tool.js';
-import { jobQueue } from './queue/job-queue.js';
-import { takeScreenshot } from './utils/screenshots.js';
-import fs from 'fs';
-import path from 'path';
+import { ensureDaemon } from './daemon/client.js';
+
+const DAEMON = {
+  baseUrl: `http://127.0.0.1:${get('daemonPort', 47821)}`,
+  tokenFile: path.join(getFlowHome(), 'config', 'daemon-token'),
+};
 
 const TOOL_DEFINITIONS = [
   {
@@ -217,134 +205,12 @@ const TOOL_DEFINITIONS = [
 ];
 
 async function handleToolCall(name, args) {
-  logger.info('Tool called', { tool: name, args: args ? JSON.stringify(args).substring(0, 200) : 'none' });
-
-  switch (name) {
-    case 'flow_connect': {
-      const result = await launchKiaraProfile(args?.headless || false);
-      if (result.browser) setBrowser(result.browser);
-      const page = getPage();
-      let oauthRequired = false;
-      if (args?.open_flow !== false) {
-        const navResult = await navigateToFlow(page);
-        if (navResult && navResult.authenticated === false) {
-          oauthRequired = true;
-        }
-      }
-      const url = page.url();
-      let accountCheck = null;
-      try {
-        accountCheck = await checkAccount(page);
-      } catch (e) {
-        accountCheck = { verified: false, error: e.message };
-      }
-      if (oauthRequired) {
-        return { content: [{ type: 'text', text: JSON.stringify({
-          status: 'oauth_required',
-          message: 'Google Flow richiede login manuale una tantum:\n'
-            + '  1. Esegui scripts/start-flow-chrome.ps1 (apre Chrome sul profilo dedicato)\n'
-            + '  2. Completa il login Google in quella finestra\n'
-            + '  3. Rilancia flow_connect',
-          browserType: 'Chrome dedicato (FlowAutomationChrome)',
-          account: accountCheck?.account || 'verified-account',
-          url: page.url().substring(0, 100),
-          accountVerified: accountCheck,
-        }, null, 2) }] };
-      }
-      return { content: [{ type: 'text', text: JSON.stringify({
-        status: 'connected',
-        browserType: 'Chrome dedicato (FlowAutomationChrome)',
-        account: accountCheck?.account || 'verified-account',
-        url: page.url(),
-        accountVerified: accountCheck,
-      }, null, 2) }] };
-    }
-
-    case 'flow_disconnect': {
-      await closeBrowserConnection();
-      return { content: [{ type: 'text', text: JSON.stringify({ status: 'disconnected' }) }] };
-    }
-
-    case 'flow_status': {
-      const status = await handleFlowStatus();
-      return { content: [{ type: 'text', text: JSON.stringify(status, null, 2) }] };
-    }
-
-    case 'flow_account_check': {
-      const page = getPage();
-      const result = await checkAccount(page);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-    }
-
-    case 'flow_discover_ui': {
-      const result = await handleDiscoverUi(args);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-    }
-
-    case 'flow_generate_image': {
-      const result = await handleGenerateImage(args);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-    }
-
-    case 'flow_generate_video': {
-      const result = await handleGenerateVideo(args);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-    }
-
-    case 'flow_download_latest': {
-      const result = await handleDownloadLatest(args);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-    }
-
-    case 'flow_create_character': {
-      const result = await handleCreateCharacter(args);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-    }
-
-    case 'flow_import_character': {
-      const result = await handleImportCharacter(args);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-    }
-
-    case 'flow_open_characters': {
-      const result = await handleOpenCharacters(args);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-    }
-
-    case 'flow_create_scene': {
-      const result = await handleCreateScene(args);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-    }
-
-    case 'flow_open_tools_gallery': {
-      const result = await handleOpenToolsGallery(args);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-    }
-
-    case 'flow_use_grid_architect': {
-      const result = await handleUseGridArchitect(args);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-    }
-
-    case 'flow_use_tool': {
-      const result = await handleUseFlowTool(args);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-    }
-
-    case 'flow_screenshot': {
-      const { getPage } = await import('./browser/connect.js');
-      const page = getPage();
-      const ss = await takeScreenshot(page, args?.name || 'manual');
-      return { content: [{ type: 'text', text: JSON.stringify({ screenshot: ss, message: 'Screenshot saved.' }) }] };
-    }
-
-    case 'flow_queue_status': {
-      return { content: [{ type: 'text', text: JSON.stringify(jobQueue.getStatus(args?.history_limit), null, 2) }] };
-    }
-
-    default:
-      throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+  if (!TOOL_DEFINITIONS.some((tool) => tool.name === name)) {
+    throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
   }
+  const client = await ensureDaemon(DAEMON);
+  const result = await client.callTool(name, args ?? {});
+  return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
 }
 
 const server = new Server(

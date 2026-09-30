@@ -312,15 +312,16 @@ export async function handleGenerateImage(args) {
     }
 
     if (generatedImageUuids.length === 0) {
-      await takeScreenshot(page, 'no-images-detected');
-      throw new FlowError(ErrorCodes.DOWNLOAD_FAILED,
-        'Generation completed but no images were detected in the DOM. ' +
-        'Check the Flow project content library.');
+      const shot = await takeScreenshot(page, 'no-images-detected');
+      throw new FlowError(ErrorCodes.GENERATION_TIMEOUT,
+        `No generated image appeared within ${Math.round(genTimeoutMs / 1000)}s. ` +
+        'Check the Flow project content library.', { screenshot: shot });
     }
 
     // STEP 13: Download generated images via authenticated session
     logger.info('Downloading generated images', { count: generatedImageUuids.length });
     const downloadedFiles = [];
+    const media = [];
 
     for (const uuid of generatedImageUuids) {
       try {
@@ -337,6 +338,7 @@ export async function handleGenerateImage(args) {
             const destPath = path.join(outputDir, `flow_${uuid.substring(0, 8)}_${job.id}${ext}`);
             fs.writeFileSync(destPath, buffer);
             downloadedFiles.push(destPath);
+            media.push({ file: destPath, uuid });
             logger.info('Image downloaded', { uuid, size: buffer.length, path: destPath });
           }
         }
@@ -348,7 +350,8 @@ export async function handleGenerateImage(args) {
     if (downloadedFiles.length === 0) {
       await takeScreenshot(page, 'download-failed');
       throw new FlowError(ErrorCodes.DOWNLOAD_FAILED,
-        'Failed to download any generated images via the authenticated session');
+        'Failed to download any generated images via the authenticated session',
+        { mediaUuids: generatedImageUuids });
     }
 
     saveMetadata(job.id, {
@@ -371,6 +374,7 @@ export async function handleGenerateImage(args) {
       ratio,
       prompt: args.prompt,
       files: downloadedFiles,
+      media,
       image_count: downloadedFiles.length,
       credits_consumed: true,
     });
