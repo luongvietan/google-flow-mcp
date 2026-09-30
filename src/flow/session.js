@@ -112,17 +112,34 @@ export class FlowSession {
     await this.page.keyboard.press('Delete');
   }
 
+  // "Add to prompt" adds the picker's active item, which stays on the previous asset after an
+  // upload. Select the uploaded asset by its file name (upload-store names are unique) first.
   async attachIngredients(files) {
     for (const file of files) {
       await this.dismissOverlays();
       await this.icon(ICONS.add).last().click();
-      const chooser = this.page.waitForEvent('filechooser', { timeout: 15_000 });
-      await this.icon(ICONS.upload).first().click()
+      const upload = this.icon(ICONS.upload).first();
+      await upload.waitFor({ state: 'visible', timeout: 15_000 })
         .catch(async () => { throw await this.uiChanged('Ingredient picker has no upload button', 'no-upload-button'); });
+      await this.page.waitForTimeout(1_000);
+      const name = path.basename(file);
+      const named = this.page.locator('.asset-item').filter({ hasText: name });
+      const before = await named.count();
+      const chooser = this.page.waitForEvent('filechooser', { timeout: 15_000 });
+      await upload.click();
       await (await chooser).setFiles(file);
+      // A new entry appears at once as a placeholder; it is selectable only once its thumbnail loads.
+      await this.page.waitForFunction(({ name, before }) => {
+        const items = [...document.querySelectorAll('.asset-item')].filter((el) => el.innerText.includes(name));
+        return items.length > before && items.every((el) => el.querySelector('img[src*="flow-content.google/"]'));
+      }, { name, before }, { timeout: 120_000 })
+        .catch(async () => { throw await this.uiChanged(`Uploaded ${name} never finished in the ingredient picker`, 'upload-not-listed'); });
+      const asset = named.first();
+      await asset.click();
+      await this.page.waitForFunction((el) => el.classList.contains('asset-item-active'), await asset.elementHandle(), { timeout: 5_000 })
+        .catch(async () => { throw await this.uiChanged(`Could not select ${name} in the ingredient picker`, 'upload-not-selected'); });
       const confirm = this.page.locator('button').filter({ hasText: exactText(LABELS.addToPrompt) }).first();
-      await confirm.waitFor({ state: 'visible', timeout: 60_000 });
-      await this.page.waitForFunction((el) => !el.disabled, await confirm.elementHandle(), { timeout: 60_000 });
+      await this.page.waitForFunction((el) => !el.disabled, await confirm.elementHandle(), { timeout: 30_000 });
       await confirm.click();
       await this.page.waitForTimeout(800);
     }
@@ -146,9 +163,12 @@ export class FlowSession {
     await send.click();
   }
 
-  async mediaSnapshot() {
-    const urls = await this.page.evaluate(() => [...document.querySelectorAll('img,video,source')]
-      .flatMap((el) => [el.currentSrc, el.src, el.getAttribute('poster')]).filter(Boolean));
+  // generatedOnly: agent results only — chat options carry alt="Option N" in every UI language;
+  // uploaded ingredients appear as project media too and must never count as results.
+  async mediaSnapshot({ generatedOnly = false } = {}) {
+    const urls = await this.page.evaluate((onlyGenerated) => [...document.querySelectorAll('img,video,source')]
+      .filter((el) => !onlyGenerated || el.tagName !== 'IMG' || /^Option \d+$/u.test(el.alt))
+      .flatMap((el) => [el.currentSrc, el.src, el.getAttribute('poster')]).filter(Boolean), generatedOnly);
     return extractMedia(urls);
   }
 
@@ -163,7 +183,7 @@ export class FlowSession {
     let idleSince = null;
     while (Date.now() < deadline) {
       await this.page.waitForTimeout(3_000);
-      const fresh = (await this.mediaSnapshot()).filter((item) => item.kind === kind && !baseline.has(item.uuid));
+      const fresh = (await this.mediaSnapshot({ generatedOnly: true })).filter((item) => item.kind === kind && !baseline.has(item.uuid));
       if (fresh.length > 0) return fresh;
       if (await this.#busy()) {
         idleSince = null;

@@ -83,3 +83,6 @@ and clarification questions. Measuring these requires generations and belongs to
 | New project | the fixed `add` ("Dự án mới") button on the home page creates a project; `Start Creating` only reopens the most recent project |
 | Send button | stays disabled for a moment after text is inserted; wait for it to enable |
 | Account panel | `role="dialog"` without a backdrop; closes through its own `close` icon |
+| Reference image (Nano Banana 2) | works: the result keeps the reference's scene; 0 credits |
+| Ingredient picker | "Add to prompt" adds the *active* `.asset-item`, which stays on the previous asset after an upload; a new upload first shows as a placeholder and is selectable once its `flow-content.google` thumbnail loads; select it by file name |
+| Uploads in results | uploaded ingredients become project media; agent results are identified by chat thumbnails with `alt="Option N"` (English in every UI language) |
