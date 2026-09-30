@@ -42,7 +42,7 @@ export async function callTool(name, args, options) {
         return {
           status: 'oauth_required',
           message: 'Google Flow richiede login manuale una tantum:\n'
-            + '  1. Esegui scripts/start-flow-chrome.ps1 (apre Chrome sul profilo dedicato)\n'
+            + '  1. Esegui scripts/ensure-flow-chrome.ps1 (apre Chrome sul profilo dedicato)\n'
             + '  2. Completa il login Google in quella finestra\n'
             + '  3. Rilancia flow_connect',
           browserType: 'Chrome dedicato (FlowAutomationChrome)',

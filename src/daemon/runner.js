@@ -39,7 +39,8 @@ export class JobRunner {
   async #drain() {
     for (let next = this.store.queued()[0]; next; next = this.store.queued()[0]) {
       const id = next.id;
-      this.store.update(id, { state: 'running', phase: 'waiting for browser', startedAt: new Date().toISOString() });
+      // The job stays `queued` until it holds the browser: a restart while it waits behind a
+      // tool call must re-run it, not report it as interrupted with credits possibly spent.
       this.#running = id;
       try {
         await this.mutex.run(() => this.#execute(id));
@@ -65,7 +66,7 @@ export class JobRunner {
   }
 
   async #execute(id) {
-    const { request } = this.store.get(id);
+    const { request } = this.store.update(id, { state: 'running', phase: 'starting', startedAt: new Date().toISOString() });
     const outputDir = path.join(this.outputsDir, id);
     const progress = (phase) => this.store.update(id, { phase });
     try {

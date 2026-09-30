@@ -13,11 +13,13 @@ import { FakeDriver } from './fake-driver.js';
 
 function setup(behavior) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'flow-runner-'));
-  const store = new JobStore(path.join(root, 'jobs.json'));
+  const file = path.join(root, 'jobs.json');
+  const store = new JobStore(file);
   const uploads = new UploadStore(path.join(root, 'uploads'));
   const driver = new FakeDriver(behavior);
-  const runner = new JobRunner({ store, uploads, driver, mutex: new Mutex(), outputsDir: path.join(root, 'outputs') });
-  return { store, uploads, driver, runner };
+  const mutex = new Mutex();
+  const runner = new JobRunner({ store, uploads, driver, mutex, outputsDir: path.join(root, 'outputs') });
+  return { store, uploads, driver, runner, mutex, file };
 }
 const image = (key, extra = {}) => ({ kind: 'image', model: 'nano-banana-2', prompt: 'p', aspectRatio: '1:1',
   duration: undefined, references: [], firstFrame: undefined, lastFrame: undefined, ingredients: [],
@@ -110,4 +112,18 @@ test('reports status', async () => {
   assert.notEqual(runner.status().running, null);
   await runner.idle();
   assert.deepEqual(runner.status(), { running: null, queued: 0 });
+});
+
+test('a job waiting for the browser stays queued, so a restart re-runs it instead of marking it interrupted', async () => {
+  const { store, runner, mutex, file } = setup();
+  let release;
+  const toolCall = mutex.run(() => new Promise((resolve) => { release = resolve; }));
+  const { job } = runner.enqueue(image('key-0000000w'));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(store.get(job.id).state, 'queued');
+  assert.deepEqual(new JobStore(file).recoverInterrupted(), []);
+  release();
+  await toolCall;
+  await runner.idle();
+  assert.equal(store.get(job.id).state, 'succeeded');
 });
