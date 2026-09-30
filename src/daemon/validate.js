@@ -1,5 +1,5 @@
 import { DaemonError, JobErrorCodes } from './errors.js';
-import { WIRE_MODELS } from './models.js';
+import { ASPECT_RATIOS, WIRE_MODELS } from './models.js';
 
 const RATIO = /^\d{1,2}:\d{1,2}$/u;
 const KEY = /^[A-Za-z0-9._:-]{8,128}$/u;
@@ -33,6 +33,9 @@ export function validateJobRequest(body) {
   if (entry.kind !== kind) throw invalid(`Model ${model} is a ${entry.kind} model, not ${kind}`);
   if (typeof prompt !== 'string' || prompt.trim().length === 0) throw invalid('prompt is required');
   if (typeof aspectRatio !== 'string' || !RATIO.test(aspectRatio)) throw invalid('aspectRatio like "9:16" is required');
+  if (!ASPECT_RATIOS[kind].includes(aspectRatio)) {
+    throw invalid(`aspectRatio ${aspectRatio} is not available for ${kind}; use ${ASPECT_RATIOS[kind].join(', ')}`);
+  }
 
   let duration;
   if (kind === 'video') {

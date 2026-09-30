@@ -28,6 +28,8 @@ test('unknown errors become INTERNAL and messages are redacted', () => {
 
 test('wire models declare kind and Flow label', () => {
   assert.deepEqual(WIRE_MODELS['nano-banana-2'], { kind: 'image', flowName: 'Nano Banana 2' });
+  assert.deepEqual(WIRE_MODELS['nano-banana-2-lite'], { kind: 'image', flowName: 'Nano Banana 2 Lite' });
   assert.deepEqual(WIRE_MODELS['veo-3.1-lite'], { kind: 'video', flowName: 'Veo 3.1 - Lite' });
-  assert.equal(Object.keys(WIRE_MODELS).length, 6);
+  assert.deepEqual(WIRE_MODELS['omni-flash'], { kind: 'video', flowName: 'Omni 1.1 Flash' });
+  assert.equal(Object.keys(WIRE_MODELS).length, 7);
 });
