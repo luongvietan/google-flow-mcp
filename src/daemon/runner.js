@@ -8,8 +8,12 @@ export class JobRunner {
   #draining = null;
   #running = null;
 
-  constructor({ store, uploads, driver, mutex, outputsDir, maxDownloadRetries = 3, log = () => {} }) {
-    Object.assign(this, { store, uploads, driver, mutex, outputsDir, maxDownloadRetries, log });
+  #lastVideoEnd = 0;
+
+  // videoCooldownMs: Flow rejected (and still charged) videos submitted back to back, so each video
+  // waits this long after the previous one finished. The job stays queued while it waits.
+  constructor({ store, uploads, driver, mutex, outputsDir, maxDownloadRetries = 3, videoCooldownMs = 0, log = () => {} }) {
+    Object.assign(this, { store, uploads, driver, mutex, outputsDir, maxDownloadRetries, videoCooldownMs, log });
   }
 
   enqueue(request) {
@@ -66,6 +70,21 @@ export class JobRunner {
   }
 
   async #execute(id) {
+    if (this.store.get(id).request.kind === 'video') {
+      const wait = this.#lastVideoEnd + this.videoCooldownMs - Date.now();
+      if (wait > 0) {
+        this.store.update(id, { phase: `cooling down ${Math.ceil(wait / 1000)}s` });
+        await new Promise((resolve) => setTimeout(resolve, wait));
+      }
+    }
+    try {
+      await this.#run(id);
+    } finally {
+      if (this.store.get(id).request.kind === 'video') this.#lastVideoEnd = Date.now();
+    }
+  }
+
+  async #run(id) {
     const { request } = this.store.update(id, { state: 'running', phase: 'starting', startedAt: new Date().toISOString() });
     const outputDir = path.join(this.outputsDir, id);
     const progress = (phase) => this.store.update(id, { phase });

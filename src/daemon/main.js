@@ -26,6 +26,7 @@ const driver = new PlaywrightFlowDriver({
 });
 const runner = new JobRunner({
   store, uploads, driver, mutex, outputsDir: path.join(dataDir, 'outputs'),
+  videoCooldownMs: get('videoCooldownMs', 30_000),
   log: (message, data) => logger.info(message, data),
 });
 const server = createDaemonServer({

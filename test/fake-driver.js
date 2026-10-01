@@ -31,7 +31,7 @@ export class FakeDriver {
   }
 
   async #generate(kind, job, progress) {
-    this.calls.push({ op: kind, job });
+    this.calls.push({ op: kind, job, at: Date.now() });
     this.active += 1;
     this.maxActive = Math.max(this.maxActive, this.active);
     try {

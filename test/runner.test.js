@@ -127,3 +127,20 @@ test('a job waiting for the browser stays queued, so a restart re-runs it instea
   await runner.idle();
   assert.equal(store.get(job.id).state, 'succeeded');
 });
+
+test('video jobs wait for the cooldown after the previous video; images do not', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'flow-runner-'));
+  const store = new JobStore(path.join(root, 'jobs.json'));
+  const driver = new FakeDriver();
+  const runner = new JobRunner({ store, uploads: new UploadStore(path.join(root, 'uploads')), driver, mutex: new Mutex(),
+    outputsDir: path.join(root, 'outputs'), videoCooldownMs: 150 });
+  const video = (key) => image(key, { kind: 'video', model: 'veo-3.1-lite', aspectRatio: '9:16', duration: 8 });
+  runner.enqueue(video('key-video-001'));
+  runner.enqueue(image('key-image-001'));
+  runner.enqueue(video('key-video-002'));
+  await runner.idle();
+  const [firstVideo, picture, secondVideo] = driver.calls;
+  assert.equal(picture.op, 'image');
+  assert.ok(picture.at - firstVideo.at < 100, 'an image does not wait for the video cooldown');
+  assert.ok(secondVideo.at - firstVideo.at >= 140, `second video started ${secondVideo.at - firstVideo.at}ms after the first`);
+});

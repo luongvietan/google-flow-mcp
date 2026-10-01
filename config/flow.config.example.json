@@ -6,6 +6,7 @@
   "cdpPort": 9222,
   "daemonPort": 47821,
   "verifyModel": true,
+  "videoCooldownMs": 30000,
   "headless": false,
   "videoGenerationTimeoutMs": 600000,
   "imageModels": {

@@ -142,3 +142,7 @@ and Claude will pick the right tool, handle Chrome startup and fallbacks automat
 ## License
 
 MIT — see [LICENSE](./LICENSE).
+
+`videoCooldownMs` (default 30000) spaces video jobs: each video waits that long after the previous
+one finished. Three Veo jobs submitted back to back were each rejected within ~27 s with Flow's
+generic "something went wrong" tile, and the failures still consumed credits. Images do not wait.
