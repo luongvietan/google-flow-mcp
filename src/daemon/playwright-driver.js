@@ -52,6 +52,9 @@ export class PlaywrightFlowDriver {
     }
     progress('opening project');
     await session.openProject(job.project);
+    // A fresh agent chat per job: a late result from an earlier (failed) job stays in its own session
+    // and can never be taken as this job's media.
+    await session.newChatSession();
     progress('configuring model');
     await session.configure({ kind: job.kind, flowModel: job.flowModel, aspectRatio: job.aspectRatio });
     await session.clearPrompt();

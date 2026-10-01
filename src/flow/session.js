@@ -79,6 +79,18 @@ export class FlowSession {
     return url;
   }
 
+  // "Start new session" (edit_square) keeps the project and its media grid but empties the agent chat,
+  // which is where results are read from.
+  async newChatSession() {
+    await this.dismissOverlays();
+    await this.icon('edit_square').first().click({ timeout: 10_000 })
+      .catch(async () => { throw await this.uiChanged('Flow has no "Start new session" (edit_square) button', 'no-new-session'); });
+    await this.page.waitForFunction(() => document.querySelectorAll('flow-a2ui-image-option, flow-a2ui-video-option').length === 0,
+      null, { timeout: 10_000 })
+      .catch(async () => { throw await this.uiChanged('The agent chat still shows earlier results after starting a new session', 'session-not-cleared'); });
+    await this.#waitForPromptBar();
+  }
+
   // Sets model, ratio, count x1 and "never ask before generating" for one kind, then saves.
   async configure({ kind, flowModel, aspectRatio }) {
     const section = kind === 'image' ? 0 : 1;

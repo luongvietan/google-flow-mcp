@@ -10,6 +10,7 @@ class FakeSession {
   }
   async account() { this.calls.push('account'); return this.accountValue; }
   async openProject(name) { this.calls.push(`open:${name}`); return 'https://flow.google.com/project/p'; }
+  async newChatSession() { this.calls.push('new-session'); }
   async configure(options) { this.calls.push(`configure:${options.kind}:${options.flowModel}:${options.aspectRatio}`); }
   async clearPrompt() { this.calls.push('clear'); }
   async attachIngredients(files) { this.calls.push(`attach:${files.join(',')}`); }
@@ -35,7 +36,7 @@ test('runs the full image pipeline in order', async () => {
   const session = new FakeSession();
   const media = await driverWith(session).generateImage(imageJob, () => {});
   assert.deepEqual(session.calls, [
-    'account', 'open:demo', 'configure:image:Nano Banana 2:1:1', 'clear', 'attach:r.png',
+    'account', 'open:demo', 'new-session', 'configure:image:Nano Banana 2:1:1', 'clear', 'attach:r.png',
     'snapshot', 'type', 'send', 'wait:image:u-old', 'verify:Nano Banana 2', 'download:u-new',
   ]);
   assert.match(session.prompt, /attached image 1 as a visual reference/);
